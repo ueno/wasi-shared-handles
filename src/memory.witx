@@ -1,0 +1,13 @@
+(use "typenames.witx")
+
+(module $wasi_ephemeral_memory
+  ;;; Linear memory to be accessed by WASI functions that need it.
+  (import "memory" (memory))
+
+  ;;; Open a memory handle.
+  (@interface func (export "open")
+    (result $error $errno)
+    ;;; The file descriptor that has been opened.
+    (result $opened_fd $fd)
+  )
+)
