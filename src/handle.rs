@@ -1,7 +1,9 @@
+use rustls::{ServerSession, Session};
 use std::any::Any;
 use std::io;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
 use wasi_common::wasi::types::{Advice, Fdflags, Filesize, Filestat, Filetype, Oflags, Rights};
 use wasi_common::{Error, Result};
@@ -10,10 +12,11 @@ use wasi_common::{Handle, HandleRights};
 pub struct SocketHandle {
     rights: RwLock<HandleRights>,
     stream: Arc<RwLock<TcpStream>>,
+    session: Arc<RwLock<ServerSession>>,
 }
 
 impl SocketHandle {
-    pub fn new(stream: TcpStream) -> Self {
+    pub fn new(stream: TcpStream, session: ServerSession) -> Self {
         Self {
             rights: RwLock::new(HandleRights::from_base(
                 Rights::FD_DATASYNC
@@ -25,6 +28,7 @@ impl SocketHandle {
                     | Rights::POLL_FD_READWRITE,
             )),
             stream: Arc::new(RwLock::new(stream)),
+            session: Arc::new(RwLock::new(session)),
         }
     }
 }
@@ -34,6 +38,7 @@ impl Clone for SocketHandle {
         Self {
             rights: RwLock::new(*self.rights.read().unwrap()),
             stream: self.stream.clone(),
+            session: self.session.clone(),
         }
     }
 }
@@ -94,14 +99,34 @@ impl Handle for SocketHandle {
         if offset != 0 {
             return Err(Error::Spipe);
         }
-        Ok(self.stream.write().unwrap().read_vectored(buf)?)
+        let mut session = self.session.write().unwrap();
+        let mut stream = self.stream.write().unwrap();
+        if session.wants_read() {
+            session.read_tls(&mut stream.deref_mut()).unwrap();
+            session.process_new_packets().unwrap();
+        }
+        let result = session.read_vectored(buf)?;
+        if session.wants_write() {
+            session.write_tls(&mut stream.deref_mut()).unwrap();
+        }
+        Ok(result)
     }
 
     fn pwritev(&self, buf: &[io::IoSlice], offset: Filesize) -> Result<usize> {
         if offset != 0 {
             return Err(Error::Spipe);
         }
-        Ok(self.stream.write().unwrap().write_vectored(buf)?)
+        let mut session = self.session.write().unwrap();
+        let mut stream = self.stream.write().unwrap();
+        let result = session.write_vectored(buf)?;
+        if session.wants_write() {
+            session.write_tls(&mut stream.deref_mut()).unwrap();
+        }
+        if session.wants_read() {
+            session.read_tls(&mut stream.deref_mut()).unwrap();
+            session.process_new_packets().unwrap();
+        }
+        Ok(result)
     }
 
     fn seek(&self, _offset: io::SeekFrom) -> Result<Filesize> {
@@ -109,11 +134,31 @@ impl Handle for SocketHandle {
     }
 
     fn read_vectored(&self, iovs: &mut [io::IoSliceMut]) -> Result<usize> {
-        Ok(self.stream.write().unwrap().read_vectored(iovs)?)
+        let mut session = self.session.write().unwrap();
+        let mut stream = self.stream.write().unwrap();
+        if session.wants_read() {
+            session.read_tls(&mut stream.deref_mut()).unwrap();
+            session.process_new_packets().unwrap();
+        }
+        let result = session.read_vectored(iovs)?;
+        if session.wants_write() {
+            session.write_tls(&mut stream.deref_mut()).unwrap();
+        }
+        Ok(result)
     }
 
     fn write_vectored(&self, iovs: &[io::IoSlice]) -> Result<usize> {
-        Ok(self.stream.write().unwrap().write_vectored(iovs)?)
+        let mut session = self.session.write().unwrap();
+        let mut stream = self.stream.write().unwrap();
+        let result = session.write_vectored(iovs)?;
+        if session.wants_write() {
+            session.write_tls(&mut stream.deref_mut()).unwrap();
+        }
+        if session.wants_read() {
+            session.read_tls(&mut stream.deref_mut()).unwrap();
+            session.process_new_packets().unwrap();
+        }
+        Ok(result)
     }
 
     fn create_directory(&self, _path: &str) -> Result<()> {

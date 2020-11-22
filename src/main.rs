@@ -1,5 +1,8 @@
 use anyhow::{Context as _, Result};
+use std::fs::File;
+use std::io;
 use std::path::PathBuf;
+use std::sync::Arc;
 use structopt::StructOpt;
 mod handle;
 mod memory;
@@ -8,8 +11,14 @@ mod socket;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "wasi-shared-handles", about = "An example of shared handles")]
 struct Opt {
-    #[structopt(short)]
-    address: Option<String>,
+    #[structopt(long)]
+    address: String,
+
+    #[structopt(long)]
+    keys: PathBuf,
+
+    #[structopt(long)]
+    certs: PathBuf,
 
     #[structopt(parse(from_os_str))]
     input: PathBuf,
@@ -30,12 +39,20 @@ fn main() -> Result<()> {
     let memory = memory::WasiMemory::new(&store, memory_ctx);
     memory.add_to_linker(&mut linker)?;
 
-    if let Some(address) = opt.address {
-        let listener = std::net::TcpListener::bind(address)?;
-        let socket_ctx = socket::WasiSocketCtx::new(&ctx.clone(), listener);
-        let socket = socket::WasiSocket::new(&store, socket_ctx);
-        socket.add_to_linker(&mut linker)?;
-    }
+    let listener = std::net::TcpListener::bind(opt.address)?;
+    let certs = File::open(opt.certs)?;
+    let mut reader = io::BufReader::new(certs);
+    let certs = rustls::internal::pemfile::certs(&mut reader).unwrap();
+    let keys = File::open(opt.keys)?;
+    let mut reader = io::BufReader::new(keys);
+    let keys = rustls::internal::pemfile::pkcs8_private_keys(&mut reader).unwrap();
+    let mut config = rustls::ServerConfig::new(rustls::NoClientAuth::new());
+    config.set_single_cert(certs, keys[0].clone())?;
+    let config = Arc::new(config);
+
+    let socket_ctx = socket::WasiSocketCtx::new(&ctx.clone(), &config.clone(), listener);
+    let socket = socket::WasiSocket::new(&store, socket_ctx);
+    socket.add_to_linker(&mut linker)?;
 
     let snapshot1 = wasmtime_wasi::Wasi::new(&store, ctx);
     snapshot1.add_to_linker(&mut linker)?;

@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 structopt = "0.3"
+rustls = "0.18"
 wasmtime = { path = "../wasmtime/crates/wasmtime", version = "0.21.0", default-features = false }
 wasmtime-runtime = { path = "../wasmtime/crates/runtime", version = "0.21.0" }
 wasmtime-wiggle = { path = "../wasmtime/crates/wiggle/wasmtime", version = "0.21.0" }
