@@ -1,9 +1,7 @@
 #![feature(wasi_ext)]
 
 use std::io::prelude::*;
-use std::os::wasi::prelude::FromRawFd;
-
-use wasi_memory;
+use std::os::wasi::prelude::*;
 
 const DATA: &[u8] = b"Hello world!";
 
