@@ -35,7 +35,7 @@ impl wasi_ephemeral_memory::WasiEphemeralMemory for WasiMemoryCtx {
     fn open(&self) -> Result<types::Fd, types::Errno> {
         let handle = wasi_common::virtfs::InMemoryFile::memory_backed();
         self.wasi_ctx
-            .borrow_mut()
+            .borrow()
             .insert_handle(handle)
             .and_then(|fd| Ok(Into::<u32>::into(fd).into()))
             .map_err(|_| types::Errno::Inval)
