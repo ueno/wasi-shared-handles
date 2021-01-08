@@ -13,4 +13,5 @@ wasmtime-runtime = { path = "../wasmtime/crates/runtime", version = "0.21.0" }
 wasmtime-wiggle = { path = "../wasmtime/crates/wiggle/wasmtime", version = "0.21.0" }
 wasmtime-wasi = { path = "../wasmtime/crates/wasi", version = "0.21.0" }
 wiggle = { path = "../wasmtime/crates/wiggle", version = "0.21.0" }
-wasi-common = { path = "../wasmtime/crates/wasi-common", version = "0.21.0" }
+wasi-c2 = { path = "../wasmtime/crates/wasi-c2", version = "0.21.0" }
+wasi-c2-wasmtime = { path = "../wasmtime/crates/wasi-c2/wasmtime", version = "0.21.0" }

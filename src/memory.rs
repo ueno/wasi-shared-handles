@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use wasi_common::WasiCtx;
+use wasi_c2::{FileCaps, WasiCtx};
 
 pub struct WasiMemoryCtx {
     wasi_ctx: RefCell<WasiCtx>,
@@ -33,11 +33,15 @@ impl wiggle::GuestErrorType for types::Errno {
 
 impl wasi_ephemeral_memory::WasiEphemeralMemory for WasiMemoryCtx {
     fn open(&self) -> Result<types::Fd, types::Errno> {
-        let handle = wasi_common::virtfs::InMemoryFile::memory_backed();
+        let pipe = wasi_c2::virt::pipe::Pipe::from(vec![]);
         self.wasi_ctx
             .borrow()
-            .insert_handle(handle)
-            .and_then(|fd| Ok(Into::<u32>::into(fd).into()))
+            .insert_file(Box::new(pipe),
+                         FileCaps::READ |
+                         FileCaps::WRITE |
+                         FileCaps::SEEK |
+                         FileCaps::TELL)
+            .and_then(|fd| Ok(fd.into()))
             .map_err(|_| types::Errno::Inval)
     }
 }
@@ -51,5 +55,5 @@ wasmtime_wiggle::wasmtime_integration!({
             name: WasiMemory,
         }
     },
-    missing_memory: { wasi_common::wasi::types::Errno::Inval },
+    missing_memory: { wasi_c2::snapshots::preview_1::types::Errno::Inval },
 });

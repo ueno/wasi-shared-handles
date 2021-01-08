@@ -8,13 +8,13 @@ fn main() -> Result<()> {
     let store = wasmtime::Store::default();
     let mut linker = wasmtime::Linker::new(&store);
 
-    let mut builder = wasi_common::WasiCtxBuilder::new();
+    let mut builder = wasi_c2::WasiCtx::builder();
     builder.inherit_stdio();
 
     let ctx = builder.build()?;
     let memory_ctx = memory::WasiMemoryCtx::new(&ctx.clone());
 
-    let snapshot1 = wasmtime_wasi::Wasi::new(&store, ctx);
+    let snapshot1 = wasi_c2_wasmtime::Wasi::new(&store, ctx);
     snapshot1.add_to_linker(&mut linker)?;
 
     let memory = memory::WasiMemory::new(&store, memory_ctx);
